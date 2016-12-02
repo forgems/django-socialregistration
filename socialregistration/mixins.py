@@ -1,16 +1,17 @@
+import importlib
+import urlparse
+
 from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
 from django.http import HttpResponseRedirect
-from django.utils import importlib
 from django.utils.translation import ugettext_lazy as _
 from django.views.generic.base import TemplateResponseMixin
 from socialregistration import signals
 from socialregistration.settings import SESSION_KEY
-import urlparse
 
-ERROR_VIEW = getattr(settings, 'SOCIALREGISTRATION_ERROR_VIEW_FUNCTION',
-    None)
+ERROR_VIEW = getattr(settings, 'SOCIALREGISTRATION_ERROR_VIEW_FUNCTION', None)
+
 
 class CommonMixin(TemplateResponseMixin):
     """
@@ -32,7 +33,7 @@ class CommonMixin(TemplateResponseMixin):
         """
         Returns a url to redirect to after the login / signup.
         """
-        if 'next' in request.session: 
+        if 'next' in request.session:
             next = request.session['next']
             del request.session['next']
         elif 'next' in request.GET:
@@ -41,9 +42,9 @@ class CommonMixin(TemplateResponseMixin):
             next = request.POST.get('next')
         else:
             next = getattr(settings, 'LOGIN_REDIRECT_URL', '/')
-        
+
         netloc = urlparse.urlparse(next)[1]
-        
+
         if netloc and netloc != request.get_host():
             next = getattr(settings, 'LOGIN_REDIRECT_URL', '/')
 
@@ -69,13 +70,17 @@ class CommonMixin(TemplateResponseMixin):
         if inactive_url:
             return HttpResponseRedirect(inactive_url)
         else:
-            return self.error_to_response(request, {'error': _("This user account is marked as inactive.")})
+            return self.error_to_response(
+                request,
+                {'error': _("This user account is marked as inactive.")}
+            )
 
     def redirect(self, request):
         """
         Redirect the user back to the ``next`` session/request variable.
         """
         return HttpResponseRedirect(self.get_next(request))
+
 
 class ClientMixin(object):
     """
@@ -95,10 +100,11 @@ class ClientMixin(object):
             raise AttributeError('`self.client` is `None`')
         return self.client
 
+
 class ProfileMixin(object):
     """
-    Views such as ``SetupCallback`` require a profile model to work with. This is
-    the interface to it.
+    Views such as ``SetupCallback`` require a profile model to work with. This
+    is the interface to it.
 
     """
     #: The profile model that we'll be working with
@@ -162,6 +168,7 @@ class ProfileMixin(object):
             profile = self.create_profile(user, save=save, **kwargs)
             return profile, True
 
+
 class SessionMixin(object):
     """
     When a new user is signing up the user and profile models and api client
@@ -201,15 +208,17 @@ class SessionMixin(object):
         Clear all session data.
         """
         for key in ['user', 'profile', 'client']:
-            try: del request.session['%s%s' % (SESSION_KEY, key)]
-            except KeyError: pass
-        
+            try:
+                del request.session['%s%s' % (SESSION_KEY, key)]
+            except KeyError:
+                pass
+
 
 class SignalMixin(object):
     """
     When signing users up or signing users in we need to send out signals to
-    notify other parts of the code. This mixin provides an interface for sending
-    the signals.
+    notify other parts of the code. This mixin provides an interface for
+    sending the signals.
     """
     def send_login_signal(self, request, user, profile, client):
         """
@@ -217,7 +226,7 @@ class SignalMixin(object):
         the user was *not* logged into Django.
         """
         signals.login.send(sender=profile.__class__, user=user,
-            profile=profile, client=client, request=request)
+                           profile=profile, client=client, request=request)
 
     def send_connect_signal(self, request, user, profile, client):
         """
@@ -225,17 +234,20 @@ class SignalMixin(object):
         account. This signal should be sent *only* when the a new social
         connection was created.
         """
-        signals.connect.send(sender=profile.__class__, user=user, profile=profile,
-            client=client, request=request)
+        signals.connect.send(sender=profile.__class__, user=user,
+                             profile=profile, client=client, request=request)
+
 
 class ErrorMixin(object):
     def error_to_response(self, request, error_dict, **context):
         if ERROR_VIEW:
-            return self.import_attribute(ERROR_VIEW)(request, error_dict, **context)
+            return self.import_attribute(ERROR_VIEW)(request, error_dict,
+                                                     **context)
         return self.render_to_response(error_dict, **context)
 
+
 class SocialRegistration(CommonMixin, ClientMixin, ProfileMixin, SessionMixin,
-    SignalMixin, ErrorMixin):
+                         SignalMixin, ErrorMixin):
     """
     Combine all mixins into a single class.
     """
